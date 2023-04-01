@@ -146,18 +146,16 @@ class Assign(Node):
 
         # determine the target of the assignment
         target = self.left
-        while isinstance(target, Index):
-            target = target.indexable
-        name = target.name
 
         # perform the assignment
         if isinstance(target, Var):
+            name = target.name
             # assigning to a variable
             if is_global:
                 global_var_env[name] = value
             else:
                 local_var_env[name] = value
-        else:
+        elif isinstance(target, Index):
             # assigning to an array element
             index = target.index.eval()
             array = target.indexable.eval()
@@ -172,7 +170,7 @@ class Block(Node):
 
     def exec(self, local_var_env, is_global):
         for stmt in self.stmts:
-            stmt.exec(local_var_env, is_global)
+            stmt.exec(local_var_env, is_global) 
 
 class If(Node):
     """Class of nodes representing if statements."""
