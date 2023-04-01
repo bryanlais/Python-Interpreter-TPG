@@ -20,13 +20,16 @@ class Node(object):
 
     def anlz_procs(self):
         """Collect procedure definitions, called on statements."""
+        print("Anlz_procs Type: " + str(self))
         raise Exception("Not implemented.")
 
     def eval(self):
         """Evaluate the AST node, called on nodes of expression subclasses."""
+        print("Eval Type: " + str(self))
         raise Exception("Not implemented.")
 
     def exec(self, local_var_env, is_global):
+        print("Exec Type: " + str(self))
         """Evaluate the AST node, called on nodes of statement subclasses.
         local_var_env: mapping of local variables to values.
         is_global: whether the current scope is global
@@ -39,6 +42,13 @@ class Node(object):
 class Var(Node):
     """Class of nodes representing accesses of variable."""
     fields = ['name']
+    def eval(self):
+        #If global scope...
+        if(is_global):
+            return global_var_env[self.name]
+        #If not global scope check local_var_env to see if variable exists
+        else:
+            return local_var_env[self.name]
     
 class Int(Node):
     """Class of nodes representing integer literals."""
@@ -130,6 +140,29 @@ class Assign(Node):
     
     def anlz_procs(self): pass
 
+    def exec(self, local_var_env, is_global):
+        # evaluate the right-hand side
+        value = self.right.eval()
+
+        # determine the target of the assignment
+        target = self.left
+        while isinstance(target, Index):
+            target = target.indexable
+        name = target.name
+
+        # perform the assignment
+        if isinstance(target, Var):
+            # assigning to a variable
+            if is_global:
+                global_var_env[name] = value
+            else:
+                local_var_env[name] = value
+        else:
+            # assigning to an array element
+            index = target.index.eval()
+            array = target.indexable.eval()
+            array[index] = value
+
 class Block(Node):
     """Class of nodes representing block statements."""
     fields = ['stmts']
@@ -137,17 +170,29 @@ class Block(Node):
     def anlz_procs(self):
         for s in self.stmts: s.anlz_procs()
 
+    def exec(self, local_var_env, is_global):
+        for stmt in self.stmts:
+            stmt.exec(local_var_env, is_global)
+
 class If(Node):
     """Class of nodes representing if statements."""
     fields = ['exp', 'stmt']
 
     def anlz_procs(self): self.stmt.anlz_procs()
 
+    def exec(self, local_var_env, is_global):
+        if self.exp.eval():
+            self.stmt.exec(local_var_env, is_global)
+
 class While(Node):
     """Class of nodes representing while statements."""
     fields = ['exp', 'stmt']
 
     def anlz_procs(self): self.stmt.anlz_procs()
+
+    def exec(self, local_var_env, is_global):
+        while self.exp.eval():
+            self.stmt.exec(local_var_env, is_global)
 
 class Def(Node):
     """Class of nodes representing procedure definitions."""
