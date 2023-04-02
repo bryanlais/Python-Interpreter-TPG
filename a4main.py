@@ -44,11 +44,13 @@ class Var(Node):
     fields = ['name']
     def eval(self):
         #If global scope...
-        if(is_global):
+        
+        if(is_global and self.name in global_var_env):
             return global_var_env[self.name]
         #If not global scope check local_var_env to see if variable exists
         else:
-            return local_var_env[self.name]
+            if(self.name in local_var_env):
+                return local_var_env[self.name]
     
 class Int(Node):
     """Class of nodes representing integer literals."""
@@ -66,7 +68,8 @@ class Array(Node):
     """Class of nodes representing array literals."""
     fields = ['elements']
 
-    def eval(self): return [e.eval() for e in self.elements]
+    def eval(self): 
+        return [local_var_env[e] if e in local_var_env else e.eval() for e in self.elements]
         
 class Index(Node):
     """Class of nodes representing indexed accesses of arrays or strings."""
@@ -131,6 +134,8 @@ class Print(Node):
 
     def anlz_procs(self): pass
 
+    def eval(self): pass
+    
     def exec(self, local_var_env, is_global):
         print(repr(self.exp.eval()))
 
@@ -155,6 +160,7 @@ class Assign(Node):
                 global_var_env[name] = value
             else:
                 local_var_env[name] = value
+                print(local_var_env)
         elif isinstance(target, Index):
             # assigning to an array element
             index = target.index.eval()
@@ -178,6 +184,11 @@ class If(Node):
 
     def anlz_procs(self): self.stmt.anlz_procs()
 
+    def eval(self):
+        print(global_var_env)
+        if self.exp.eval():
+            self.stmt.exec(local_var_env, is_global)
+
     def exec(self, local_var_env, is_global):
         if self.exp.eval():
             self.stmt.exec(local_var_env, is_global)
@@ -197,21 +208,58 @@ class Def(Node):
     fields = ['name', 'params', 'body']
 
     def anlz_procs(self):
-        proc_env[self.name] = (self.params, self.body)
+        proc_env[self.name] = self
         self.body.anlz_procs()
 
+    def exec(self, local_var_env, is_global):
+        if is_global:
+            # Define the function in the global environment
+            global_var_env[self.name] = self
+        else:
+            # Define the function in the local environment
+            local_var_env[self.name] = self
+
+    def call(self, args):
+        # Populate the local environment with the function's parameters
+        for param, arg in zip(self.params, args):
+            print(local_var_env)
+            local_var_env[param] = arg
+
+        # Execute the function's body in the local environment
+        if(isinstance(self.body, Block)):
+            for statement in self.body.stmts:
+                print(statement)
+                statement.exec(local_var_env, False)
+            return self.body.stmts[-1].eval()
+        # If not a block and just a simple node class, just execute that. 
+        self.body.exec(local_var_env, False)
+        return self.body.eval()
+
+        
 class Call(Node):
     """Class of nodes representing precedure calls."""
     fields = ['name', 'args']
 
     def anlz_procs(self): pass
 
+    def exec(self, local_var_env, is_global):
+        # Evaluate arguments
+        evaluated_args = [arg.eval() for arg in self.args]
+
+        # Lookup the function in the environment
+        func_name = self.name
+        func = proc_env[func_name]
+
+
+        # Call the function and return the result
+        return func.call(evaluated_args)
+
 
 # This is the parser using TPG for parsing MustScript and building an AST.
 class Parser(tpg.Parser):
     r"""
     token int:         '\d+' ;
-    token string:      '\"[^\"]*\"' ;
+    token string:      '\"[^\"]*\"'  ;
     token ident:       '[a-zA-Z_][\w]*' ;
     separator spaces:  '\s+' ;
     separator comment: '#.*' ;
@@ -274,7 +322,6 @@ try:
     # proc_env: map from procedure names to their parameters and body
     proc_env = {}
     node.anlz_procs()
-
     # Try to execute the program.
     print('Executing...')
     # global_var_env: map from global variable names to their values
