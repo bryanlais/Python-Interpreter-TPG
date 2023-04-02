@@ -160,7 +160,6 @@ class Assign(Node):
                 global_var_env[name] = value
             else:
                 local_var_env[name] = value
-                print(local_var_env)
         elif isinstance(target, Index):
             # assigning to an array element
             index = target.index.eval()
@@ -185,7 +184,6 @@ class If(Node):
     def anlz_procs(self): self.stmt.anlz_procs()
 
     def eval(self):
-        print(global_var_env)
         if self.exp.eval():
             self.stmt.exec(local_var_env, is_global)
 
@@ -222,13 +220,11 @@ class Def(Node):
     def call(self, args):
         # Populate the local environment with the function's parameters
         for param, arg in zip(self.params, args):
-            print(local_var_env)
             local_var_env[param] = arg
 
         # Execute the function's body in the local environment
         if(isinstance(self.body, Block)):
             for statement in self.body.stmts:
-                print(statement)
                 statement.exec(local_var_env, False)
             return self.body.stmts[-1].eval()
         # If not a block and just a simple node class, just execute that. 
